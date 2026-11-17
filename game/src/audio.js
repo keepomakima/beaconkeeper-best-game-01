@@ -1,58 +1,47 @@
-// Beaconkeeper — sound, all synthesised with WebAudio at run time.
-// No audio files, no network. In Node (tests) there is no window, so
-// every method is a harmless no-op until a browser unlocks audio.
+// Tiny WebAudio synth: every sound is an oscillator + gain envelope, no
+// assets, no network. Silently no-ops when there is no AudioContext
+// (headless tests, muted tab) — the sim never depends on it.
 export class AudioSys {
   constructor() {
     this.ctx = null;
+    this.master = null;
     this.muted = false;
-    this.padNodes = null;
   }
-  unlock() {
-    if (this.ctx || typeof window === 'undefined') return;
+  ensure() {
+    if (this.ctx || typeof window === 'undefined' || !window.AudioContext) return;
     try {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      this.ctx = new AC();
-      this.startPad();
+      this.ctx = new window.AudioContext();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.25;
+      this.master.connect(this.ctx.destination);
     } catch { this.ctx = null; }
   }
+  resume() { this.ensure(); if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); }
   toggleMute() { this.muted = !this.muted; return this.muted; }
-  tone(freq, dur, type, vol, slideTo) {
-    if (!this.ctx || this.muted) return;
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = type || 'sine';
-    osc.frequency.setValueAtTime(freq, t);
-    if (slideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur);
-    gain.gain.setValueAtTime(vol || 0.12, t);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    osc.connect(gain).connect(this.ctx.destination);
-    osc.start(t);
-    osc.stop(t + dur + 0.02);
+  tone(freq, dur, type = 'sine', vol = 0.5, slideTo = null, delay = 0) {
+    if (this.muted || !this.ctx) return;
+    const t0 = this.ctx.currentTime + delay;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t0); o.stop(t0 + dur + 0.05);
   }
-  shoot() { this.tone(880, 0.07, 'triangle', 0.05, 440); }
-  hit() { this.tone(220, 0.09, 'square', 0.07, 110); }
-  kill() { this.tone(520, 0.16, 'sawtooth', 0.08, 90); }
-  pickup() { this.tone(660, 0.08, 'sine', 0.09, 990); }
-  hurt() { this.tone(160, 0.25, 'sawtooth', 0.12, 60); }
-  dash() { this.tone(300, 0.12, 'sine', 0.07, 720); }
-  wave() { this.tone(392, 0.3, 'triangle', 0.1, 523); this.tone(523, 0.3, 'triangle', 0.08, 784); }
-  upgrade() { [523, 659, 784].forEach((f, i) => setTimeout(() => this.tone(f, 0.22, 'triangle', 0.09), i * 90)); }
-  win() { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, 0.4, 'triangle', 0.1), i * 140)); }
-  lose() { [392, 330, 262, 196].forEach((f, i) => setTimeout(() => this.tone(f, 0.4, 'sawtooth', 0.08), i * 160)); }
-  startPad() {
-    if (!this.ctx || this.padNodes) return;
-    const gain = this.ctx.createGain();
-    gain.gain.value = 0.035;
-    gain.connect(this.ctx.destination);
-    const freqs = [110, 164.8, 220];
-    this.padNodes = freqs.map((f) => {
-      const osc = this.ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = f;
-      osc.connect(gain);
-      osc.start();
-      return osc;
-    });
-  }
+  plant() { this.tone(520, 0.12, 'triangle', 0.4, 780); }
+  shoot() { this.tone(880, 0.07, 'square', 0.16, 440); }
+  lance() { this.tone(1200, 0.25, 'sawtooth', 0.14, 300); }
+  boom() { this.tone(140, 0.35, 'sine', 0.6, 40); this.tone(90, 0.3, 'triangle', 0.4, 50, 0.02); }
+  sun() { this.tone(1320, 0.1, 'sine', 0.3, 1760); }
+  bite() { this.tone(180, 0.08, 'square', 0.2, 120); }
+  fuse() { this.tone(660, 0.15, 'triangle', 0.35, 990); this.tone(990, 0.2, 'sine', 0.3, 1320, 0.08); }
+  boss() { this.tone(70, 0.9, 'sawtooth', 0.5, 55); this.tone(110, 0.9, 'triangle', 0.3, 82, 0.1); }
+  waveClear() { [523, 659, 784].forEach((f, i) => this.tone(f, 0.18, 'triangle', 0.3, null, i * 0.09)); }
+  win() { [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.3, 'triangle', 0.32, null, i * 0.12)); }
+  lose() { [392, 330, 262, 196].forEach((f, i) => this.tone(f, 0.3, 'sine', 0.3, null, i * 0.14)); }
+  click() { this.tone(700, 0.05, 'square', 0.15); }
 }

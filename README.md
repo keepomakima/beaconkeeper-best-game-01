@@ -1,67 +1,72 @@
-# Beaconkeeper — Last Light of the Ember Vale
+# STARSEED ORCHARD — grow light, hold back the night
 
-A complete top-down arena survival game for make.fun best-game-01.
-You are the keeper of the last lantern in a night vale. Shadows pour
-in from the dark; your lantern beam banishes them, embers refuel it,
-and the lantern itself must survive — crawlers chew it apart while
-wisps hunt you. Hold 10 waves until dawn.
+A best-game-01 entry ($1,000). A lane-defense garden game: plant
+star-seeds, grow living light, and hold back the creatures of the dark
+for ten waves. Written from scratch in this session — canvas 2D, plain
+ES modules, no assets, no network. WebAudio synth sound, no files.
+
+## The central idea — the light map
+
+Every plant is a lamp. Each tile has a light level (0–3) from the
+plants around it. Enemies standing in light **burn and slow down**;
+enemies in darkness **regenerate and speed up**. So where you plant
+matters as much as what you plant: you sculpt a map of light across
+the garden, and the dark keeps trying to eat it back.
 
 ## How to play
 
-- **WASD / arrows** — move
-- **Mouse** — aim the beam
-- **Hold click / Space** — fire the lantern beam (drains fuel)
-- **Shift** — dash (brief burst, recharges)
-- **P** — pause, **M** — mute
-- **1 / 2 / 3 or click** — pick an upgrade after each cleared wave
+- **Mouse:** click a seed card, then click a tile to plant. Click
+  falling suns for +25. **1–8:** pick a seed. **F:** fuse mode —
+  click a grown plant, then a seed, to graft a hybrid.
+- **Space:** pause. **M:** mute. **C:** codex. **R:** restart.
+- **Goal:** keep the Heart Tree alive (5 hearts) through 10 waves.
+  Wave 5 brings the Hollow Moth (it dims the garden); wave 10 the
+  Rootrot Titan (it crushes plants). Win, and the endless night opens.
 
-## The loop
+## Systems
 
-- 10 waves, each bigger and faster than the last; 3 shadow kinds
-  (wisp, crawler, brute) with different targets and toughness.
-- Shadows materialise through a violet telegraph ring (0.45 s) and
-  cannot be burned until they arrive — no cheap spawn kills.
-- Banishing a brute freezes the world for a hit-stop beat.
-- Kills build a combo multiplier; embers drop fuel and score; brutes
-  sometimes drop a heart. After each wave, choose 1 of 3 blessings
-  from a pool of 8 (fuel, damage, speed, hearts, range, dash, magnet,
-  lantern repair).
-- Win at dawn after wave 10; lose if the keeper falls or the lantern
-  is devoured. Best score is kept in localStorage.
+- **8 seeds** (Sunbloom, Thornspike, Emberpod, Frostberry, Barkwall,
+  Sporeburst, Moonpetal, Starlance), each growing sprout → bloom →
+  radiant, with its own glow radius.
+- **8 fusions** — graft two grown plants into a hybrid (Frostfire Pod,
+  Dawnspire, Bramblewall, Sunlance, Mistbloom, Minefield Thorn,
+  Emberheart, Bastion Lance). First graft of each kind is recorded in
+  the codex.
+- **Draft & reroll** — after every wave, pick 1 of 3 boons (sun,
+  discounts, hearts, instant growth, free fusion, wider glow); reroll
+  costs sunlight and climbs each time.
+- **3 difficulties** — Sprout (gentle), Bloom (the true night),
+  Blight (merciless). Boss HP, enemy HP/speed and sun income scale.
+- **7 enemies** — Mothling, Crawler, Brute, Spitter (shoots from
+  range, keeps creeping), Burrower (dives underground), Swarm,
+  Wisp (flies over plants) — plus 2 bosses and an endless mode.
+- **Score** — kills × wave multiplier, wave-clear bonuses, hearts
+  left and time bonus at the win. Best score is kept locally.
 
-## Feel and polish
+## Tests
 
-- Deterministic fixed 60 Hz simulation (seeded PRNG): the same seed
-  replays byte-identically, which the headless tests prove.
-- Pooled particles, screen shake, floating score text, hurt flashes,
-  spawn telegraphs, brute hit-stop.
-- All sound is synthesised WebAudio at run time (shots, pickups, wave
-  fanfares, a low ambient pad) — no audio files, no network.
-- Screenshots are real renders of the game's own code, staged
-  deterministically from `?shot=<scene>&seed=11` (see shots.json).
+`node --test tests/playthrough.test.mjs` (Node stdlib only):
+
+- careful pilot wins Bloom on 8/8 seeds (scores ~77–87k, 8–11 min);
+- careless pilot loses (random planting, no sun clicks);
+- same seed replays identically (score, kills, ticks);
+- fusion, light map and draft unit checks; all four shot scenes stage.
 
 ## Run it
 
-```sh
-node serve.ts        # then open http://localhost:8080
-node --test tests/playthrough.test.mjs
-mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-```
+`node serve.ts` → http://localhost:8080 — or open `game/index.html`
+through any static server. `?test=1` exposes a read-only
+`window.__gameTest` hook; `?shot=start|play|draft|win&seed=11`
+stages a screenshot scene (`window.__shotReady` when painted).
 
-## Structure
+## Files
 
-- `game/src/config.js` — every tuned number
-- `game/src/random.js` — seeded PRNG and angle helpers
-- `game/src/input.js` — keyboard + mouse
-- `game/src/audio.js` — synthesised WebAudio sound
-- `game/src/player.js` — the keeper (move, beam, dash, hearts, fuel)
-- `game/src/enemies.js` — shadow kinds, telegraphs, targeting
-- `game/src/waves.js` — wave plans and the upgrade choice
-- `game/src/pickups.js` — embers and hearts
-- `game/src/particles.js` — pooled particles, texts, shake
-- `game/src/game.js` — state machine, beam, scoring, autopilot
-- `game/src/render.js` — all canvas drawing and menus
-- `game/src/shots.js` — deterministic screenshot scenes
-- `game/src/main.js` — browser loop and `?test=1` hook
-
-License: MIT.
+- `game/index.html` — the page (canvas 1280×720).
+- `game/src/` — one job per file: `config` (tuning tables), `random`
+  (seeded PRNG), `light` (light map), `plants` (growth, fusion),
+  `enemies` (7 kinds + bosses), `waves` (director), `draft` (boons),
+  `particles`, `audio` (synth), `input`, `game` (the simulation +
+  the careful/careless pilots), `render`, `shots`, `main` (bootstrap).
+- `main.ts` — copies `game/` + `screenshots/` to the output and
+  writes `dossier.json` with the vendored make.fun library.
+- `tests/playthrough.test.mjs` — the headless tests above.
